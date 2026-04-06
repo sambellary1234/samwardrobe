@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Wardrobe</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f5f5f4;
+      --text: #1a1a18;
+      --text-secondary: #6b6b67;
+      --border: rgba(0,0,0,0.12);
+      --border-hover: rgba(0,0,0,0.25);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1e1e1c;
+        --bg-secondary: #2a2a28;
+        --text: #f0ede8;
+        --text-secondary: #9a9994;
+        --border: rgba(255,255,255,0.12);
+        --border-hover: rgba(255,255,255,0.25);
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-secondary);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; }
+
+    header { margin-bottom: 2rem; }
+    header h1 { font-size: 28px; font-weight: 600; }
+    header p { font-size: 15px; color: var(--text-secondary); margin-top: 4px; }
+
+    .stats-bar {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: var(--bg); border: 0.5px solid var(--border);
+      border-radius: var(--radius-md); padding: 8px 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .stat-num { font-size: 20px; font-weight: 600; }
+    .stat-label { font-size: 12px; color: var(--text-secondary); }
+
+    .categories {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.5rem;
+    }
+    .cat-btn {
+      padding: 6px 16px; border-radius: 20px;
+      border: 0.5px solid var(--border);
+      background: var(--bg); font-size: 13px; cursor: pointer;
+      color: var(--text-secondary); font-family: inherit;
+      transition: all 0.15s;
+    }
+    .cat-btn:hover { border-color: var(--border-hover); color: var(--text); }
+    .cat-btn.active {
+      background: var(--text); color: var(--bg);
+      border-color: var(--text);
+    }
+
+    .add-bar {
+      background: var(--bg); border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg); padding: 1rem;
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .add-bar input[type="text"], .add-bar select {
+      flex: 1; min-width: 140px; height: 38px; padding: 0 12px;
+      border: 0.5px solid var(--border); border-radius: var(--radius-md);
+      background: var(--bg-secondary); color: var(--text);
+      font-family: inherit; font-size: 14px; outline: none;
+    }
+    .add-bar input[type="text"]:focus, .add-bar select:focus {
+      border-color: var(--border-hover);
+    }
+    .add-bar input[type="color"] {
+      width: 44px; height: 38px; padding: 4px;
+      border: 0.5px solid var(--border); border-radius: var(--radius-md);
+      background: var(--bg-secondary); cursor: pointer;
+    }
+    .add-bar button {
+      height: 38px; padding: 0 18px; border-radius: var(--radius-md);
+      background: var(--text); color: var(--bg);
+      border: none; font-family: inherit; font-size: 14px;
+      font-weight: 500; cursor: pointer; white-space: nowrap;
+    }
+    .add-bar button:hover { opacity: 0.85; }
+
+    .section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 10px;
+    }
+
+    .section-block { margin-bottom: 2rem; }
+
+    .items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .item-card {
+      background: var(--bg); border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg); padding: 14px;
+      display: flex; flex-direction: column; gap: 10px;
+      position: relative; transition: border-color 0.15s;
+    }
+    .item-card:hover { border-color: var(--border-hover); }
+
+    .item-color-dot {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 0.5px solid var(--border); flex-shrink: 0;
+    }
+    .item-name {
+      font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.35;
+    }
+    .item-meta { font-size: 12px; color: var(--text-secondary); }
+
+    .item-delete {
+      position: absolute; top: 10px; right: 10px;
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 0.5px solid var(--border);
+      background: var(--bg-secondary); color: var(--text-secondary);
+      font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1; font-family: inherit;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .item-card:hover .item-delete { opacity: 1; }
+    .item-delete:hover { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+    .empty {
+      padding: 3rem; text-align: center;
+      color: var(--text-secondary); font-size: 15px;
+      background: var(--bg); border: 0.5px dashed var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    @media (max-width: 500px) {
+      .add-bar { flex-direction: column; }
+      .add-bar input[type="text"], .add-bar select, .add-bar button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>👗 My Wardrobe</h1>
+    <p>Organize your tops, shirts, pants, dresses &amp; shoes</p>
+  </header>
+
+  <div class="stats-bar" id="statsBar"></div>
+
+  <div class="categories" id="categoryTabs"></div>
+
+  <div class="add-bar">
+    <input type="text" id="itemName" placeholder="Item name (e.g. White linen shirt)" />
+    <select id="itemCategory">
+      <option value="tops">Tops</option>
+      <option value="shirts">Shirts</option>
+      <option value="pants">Pants</option>
+      <option value="dresses">Dresses</option>
+      <option value="shoes">Shoes</option>
+    </select>
+    <input type="color" id="itemColor" value="#a3a3a3" title="Pick a color" />
+    <button onclick="addItem()">+ Add item</button>
+  </div>
+
+  <div id="itemsContainer"></div>
+</div>
+
+<script>
+  const CATEGORIES = [
+    { id: 'all',     label: 'All items' },
+    { id: 'tops',    label: 'Tops' },
+    { id: 'shirts',  label: 'Shirts' },
+    { id: 'pants',   label: 'Pants' },
+    { id: 'dresses', label: 'Dresses' },
+    { id: 'shoes',   label: 'Shoes' },
+  ];
+
+  let items = [];
+  let activeCategory = 'all';
+
+  function loadItems() {
+    try {
+      const saved = localStorage.getItem('wardrobe-items');
+      if (saved) items = JSON.parse(saved);
+    } catch(e) { items = []; }
+    render();
+  }
+
+  function saveItems() {
+    try { localStorage.setItem('wardrobe-items', JSON.stringify(items)); } catch(e) {}
+  }
+
+  function addItem() {
+    const name = document.getElementById('itemName').value.trim();
+    if (!name) return;
+    const category = document.getElementById('itemCategory').value;
+    const color = document.getElementById('itemColor').value;
+    items.push({ id: Date.now(), name, category, color });
+    document.getElementById('itemName').value = '';
+    saveItems();
+    render();
+  }
+
+  function deleteItem(id) {
+    if (!confirm('Remove this item from your wardrobe?')) return;
+    items = items.filter(i => i.id !== id);
+    saveItems();
+    render();
+  }
+
+  function setCategory(cat) {
+    activeCategory = cat;
+    render();
+  }
+
+  function render() {
+    renderStats();
+    renderTabs();
+    renderItems();
+  }
+
+  function renderStats() {
+    const cats = ['tops','shirts','pants','dresses','shoes'];
+    const bar = document.getElementById('statsBar');
+    bar.innerHTML =
+      `<div class="stat"><span class="stat-num">${items.length}</span><span class="stat-label">total items</span></div>` +
+      cats.map(c => {
+        const count = items.filter(i => i.category === c).length;
+        if (!count) return '';
+        return `<div class="stat"><span class="stat-num">${count}</span><span class="stat-label">${c}</span></div>`;
+      }).join('');
+  }
+
+  function renderTabs() {
+    const tabs = document.getElementById('categoryTabs');
+    tabs.innerHTML = CATEGORIES.map(c => {
+      const count = c.id === 'all' ? items.length : items.filter(i => i.category === c.id).length;
+      return `<button class="cat-btn${activeCategory === c.id ? ' active' : ''}" onclick="setCategory('${c.id}')">
+        ${c.label}${count > 0 ? ` <span style="opacity:0.55;font-size:12px">${count}</span>` : ''}
+      </button>`;
+    }).join('');
+  }
+
+  function renderItems() {
+    const container = document.getElementById('itemsContainer');
+    const filtered = activeCategory === 'all' ? items : items.filter(i => i.category === activeCategory);
+
+    if (!filtered.length) {
+      container.innerHTML = `<div class="empty">No items yet — add your first piece above ↑</div>`;
+      return;
+    }
+
+    if (activeCategory === 'all') {
+      const byCat = {};
+      filtered.forEach(item => {
+        if (!byCat[item.category]) byCat[item.category] = [];
+        byCat[item.category].push(item);
+      });
+      container.innerHTML = Object.entries(byCat).map(([cat, catItems]) =>
+        `<div class="section-block">
+          <div class="section-label">${cat}</div>
+          <div class="items-grid">${catItems.map(itemCard).join('')}</div>
+        </div>`
+      ).join('');
+    } else {
+      container.innerHTML = `<div class="items-grid">${filtered.map(itemCard).join('')}</div>`;
+    }
+  }
+
+  function itemCard(item) {
+    return `<div class="item-card">
+      <button class="item-delete" onclick="deleteItem(${item.id})" title="Remove">×</button>
+      <div class="item-color-dot" style="background:${item.color}"></div>
+      <div class="item-name">${item.name}</div>
+      <div class="item-meta">${item.category}</div>
+    </div>`;
+  }
+
+  document.getElementById('itemName').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addItem();
+  });
+
+  loadItems();
+</script>
+</body>
+</html>
