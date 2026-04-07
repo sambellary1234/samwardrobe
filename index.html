@@ -201,6 +201,16 @@ header p{font-size:13px;color:var(--muted);margin-top:4px}
 .dtwo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .durl-row{display:flex;gap:8px;align-items:flex-end}
 .durl-row .df{flex:1;margin-bottom:0}
+.upload-area{border:1.5px dashed var(--border2);border-radius:var(--rs);padding:14px;text-align:center;cursor:pointer;transition:all .18s;margin-bottom:14px;background:transparent;position:relative}
+.upload-area:hover{border-color:var(--accent);background:rgba(196,152,74,.04)}
+.upload-area.dragging{border-color:var(--accent);background:rgba(196,152,74,.08)}
+.upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-area .ua-icon{font-size:24px;margin-bottom:6px;display:block}
+.upload-area .ua-text{font-size:13px;color:var(--muted)}
+.upload-area .ua-sub{font-size:11px;color:var(--light);margin-top:3px}
+.upload-divider{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.upload-divider::before,.upload-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.upload-divider span{font-size:11px;color:var(--light);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
 .dfetch{height:40px;padding:0 14px;border-radius:var(--rs);border:1px solid var(--accent);background:transparent;color:var(--accent-dk);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;align-self:flex-end}
 .dfetch:hover{background:var(--accent);color:#fff}
 .dfetch:disabled{opacity:.5;cursor:not-allowed}
@@ -403,6 +413,16 @@ header p{font-size:13px;color:var(--muted);margin-top:4px}
     </div>
     <div class="df"><label>Notes</label><textarea id="dNotes" placeholder="Fit, material, occasion…"></textarea></div>
     <div class="df"><label>Purchase link</label><input type="url" id="dUrl" placeholder="https://…"/></div>
+
+    <!-- PHOTO UPLOAD -->
+    <div class="upload-area" id="uploadArea">
+      <input type="file" id="photoUpload" accept="image/*" onchange="handlePhotoUpload(event)"/>
+      <span class="ua-icon">📷</span>
+      <div class="ua-text">Tap to upload a photo from your device</div>
+      <div class="ua-sub">or drag and drop · JPG, PNG, HEIC</div>
+    </div>
+    <div class="upload-divider"><span>or use an image URL</span></div>
+
     <div class="durl-row" style="margin-bottom:0">
       <div class="df">
         <label>Image URL <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">— or fetch from link</span></label>
@@ -674,6 +694,64 @@ function setDImg(src){
   else w.innerHTML='<div class="dimg-ph">Image will appear here.<br/>Paste a link and click Fetch.</div>';
 }
 function dManualImg(){setDImg(document.getElementById('dImgUrl').value.trim()||'');}
+
+function handlePhotoUpload(event){
+  var file = event.target.files[0];
+  if(!file) return;
+
+  // Show loading state
+  var area = document.getElementById('uploadArea');
+  area.querySelector('.ua-text').textContent = 'Processing…';
+
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var dataUrl = e.target.result;
+
+    // Resize large images before storing to keep Supabase size reasonable
+    var img = new Image();
+    img.onload = function(){
+      var maxSize = 800;
+      var w = img.width, h = img.height;
+      if(w > maxSize || h > maxSize){
+        var ratio = Math.min(maxSize/w, maxSize/h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      var compressed = canvas.toDataURL('image/jpeg', 0.80);
+
+      // Put into image URL field and preview
+      document.getElementById('dImgUrl').value = compressed;
+      setDImg(compressed);
+      document.getElementById('dStatus').textContent = '✓ Photo uploaded!';
+
+      // Reset upload area text
+      area.querySelector('.ua-text').textContent = 'Tap to upload a photo from your device';
+      area.querySelector('.ua-sub').textContent = 'Photo ready — or upload a different one';
+    };
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Drag and drop highlight
+document.addEventListener('DOMContentLoaded', function(){
+  var area = document.getElementById('uploadArea');
+  if(!area) return;
+  area.addEventListener('dragover',  function(e){ e.preventDefault(); area.classList.add('dragging'); });
+  area.addEventListener('dragleave', function(){ area.classList.remove('dragging'); });
+  area.addEventListener('drop',      function(e){
+    e.preventDefault(); area.classList.remove('dragging');
+    var file = e.dataTransfer.files[0];
+    if(file && file.type.startsWith('image/')){
+      var fakeEvent = {target:{files:[file]}};
+      handlePhotoUpload(fakeEvent);
+    }
+  });
+});
 async function dFetch(){
   var url=document.getElementById('dUrl').value.trim();
   if(!url){document.getElementById('dStatus').textContent='Paste a purchase link first.';return;}
