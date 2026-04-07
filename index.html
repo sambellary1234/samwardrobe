@@ -42,6 +42,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 header{padding:1.75rem 2rem 0;border-bottom:1px solid var(--border)}
 header h1{font-family:'DM Serif Display',serif;font-size:36px;font-weight:400;letter-spacing:-.5px}
 header p{font-size:13px;color:var(--muted);margin-top:4px}
+.header-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.backup-btn{padding:6px 14px;border-radius:30px;border:1px solid var(--border2);background:transparent;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;color:var(--muted);transition:all .18s;white-space:nowrap}
+.backup-btn:hover{color:var(--text);border-color:var(--text)}
+.import-btn{display:inline-flex;align-items:center}
 .tabs{display:flex;margin-top:1.25rem}
 .tab{padding:9px 20px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .18s;white-space:nowrap}
 .tab:hover{color:var(--text)}
@@ -243,6 +247,10 @@ header p{font-size:13px;color:var(--muted);margin-top:4px}
 <header>
   <h1>My Wardrobe</h1>
   <p>Your personal closet tracker</p>
+  <div class="header-actions">
+    <button class="backup-btn" onclick="exportBackup()" title="Download a backup of all your data">⬇ Export backup</button>
+    <label class="backup-btn import-btn" title="Restore from a backup file">⬆ Import backup<input type="file" accept=".json" onchange="importBackup(event)" style="display:none"/></label>
+  </div>
   <nav class="tabs">
     <button class="tab on"  onclick="showView('wardrobe',this)">Wardrobe</button>
     <button class="tab"     onclick="showView('outfits',this)">Outfit Builder</button>
@@ -814,6 +822,95 @@ function renderSavedOutfits(){
     var cc=oi.length===1?'one':oi.length===3?'three':'';
     return'<div class="scard"><button class="scard-del" onclick="delOutfit('+o.id+')">×</button><div class="scard-imgs '+cc+'">'+imgs+'</div><div class="scard-body"><div class="scard-name">'+esc(o.name)+'</div><div class="scard-meta">'+oi.length+' piece'+(oi.length!==1?'s':'')+'</div>'+(total>0?'<div class="scard-price">'+fmt(total)+'</div>':'')+'</div></div>';
   }).join('');
+}
+
+/* ═══════════════════════════════════════
+   EXPORT / IMPORT BACKUP
+═══════════════════════════════════════ */
+function exportBackup(){
+  var data={
+    exportedAt: new Date().toISOString(),
+    version: 1,
+    items:    items,
+    outfits:  outfits,
+    wishlist: wishlist,
+  };
+  var json = JSON.stringify(data, null, 2);
+  var blob = new Blob([json], {type:'application/json'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  var date = new Date().toISOString().split('T')[0];
+  a.href     = url;
+  a.download = 'wardrobe-backup-' + date + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup downloaded ✓', 'ok');
+}
+
+async function importBackup(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  // reset the input so the same file can be re-imported
+  event.target.value = '';
+
+  var text;
+  try { text = await file.text(); } catch(e){ toast('Could not read file','err'); return; }
+
+  var data;
+  try { data = JSON.parse(text); } catch(e){ toast('Invalid backup file','err'); return; }
+
+  if(!data.items || !Array.isArray(data.items)){
+    toast('This does not look like a wardrobe backup','err');
+    return;
+  }
+
+  var itemCount    = data.items.length;
+  var outfitCount  = (data.outfits||[]).length;
+  var wishCount    = (data.wishlist||[]).length;
+
+  if(!confirm(
+    'Import this backup?\n\n' +
+    '• ' + itemCount   + ' wardrobe items\n' +
+    '• ' + outfitCount + ' outfits\n' +
+    '• ' + wishCount   + ' wish list items\n\n' +
+    'This will ADD to your existing data (it will not delete anything).'
+  )) return;
+
+  showSync();
+  toast('Importing…','');
+
+  // Give each imported item a fresh ID to avoid collisions
+  var now = Date.now();
+  var importedItems   = (data.items||[]).map(function(i,idx){ return Object.assign({},i,{id: now + idx}); });
+  var importedOutfits = (data.outfits||[]).map(function(o,idx){
+    // remap zone itemIds to new IDs
+    var oldToNew={};
+    (data.items||[]).forEach(function(oi,k){ oldToNew[oi.id]=now+k; });
+    var newZones={};
+    Object.keys(o.zones||{}).forEach(function(z){ newZones[z]=oldToNew[o.zones[z]]||o.zones[z]; });
+    return {id: now+10000+idx, name:o.name, zones:newZones};
+  });
+  var importedWish = (data.wishlist||[]).map(function(i,idx){ return Object.assign({},i,{id: now+20000+idx}); });
+
+  // Push to Supabase
+  try{
+    await Promise.all(
+      importedItems.map(function(i){ return sbUpsert('wardrobe_items', itemToRow(i)); })
+      .concat(importedOutfits.map(function(o){ return sbUpsert('wardrobe_outfits',{id:o.id,name:o.name,zones:o.zones}); }))
+      .concat(importedWish.map(function(i){ return sbUpsert('wardrobe_wishlist', wishToRow(i)); }))
+    );
+    // merge into local state
+    items    = items.concat(importedItems);
+    outfits  = outfits.concat(importedOutfits);
+    wishlist = wishlist.concat(importedWish);
+    hideSync();
+    toast('Imported ' + itemCount + ' items ✓','ok');
+    render();
+    renderWishlist();
+  } catch(e){
+    hideSync();
+    toast('Import failed — check your connection','err');
+  }
 }
 
 /* ═══════════════════════════════════════
